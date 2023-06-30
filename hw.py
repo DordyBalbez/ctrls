@@ -159,3 +159,20 @@ def lab3(BW, tau, PM):
     Kd = K - 2*a*K*tau - K*(a*tau)**2
 
     return(Ki, Kp, Kd)
+
+def hwprob2():
+    P1s = ct.tf([-1, 5], [1, 1]) * ct.tf([1], [1, 1]) * ct.tf([1], [1, 1])
+    P2s = ct.tf([5], [1, 1, 1])
+
+    ### PM TUNING METHODS ###
+
+    BW = 10
+    wc = 2 * BW / 3
+    tau = 0.01
+
+    beta = np.radians(-220) + np.arctan(tau * wc) + np.arctan(wc / 5) + 3 * np.arctan(wc)
+    a1 = wc / np.tan(beta/2)
+
+    alpha = np.radians(500) + np.arctan(tau * wc) - np.arctan(wc / (1+1.7320508075688772j)) - np.arctan(wc / (1-1.7320508075688772j))
+    a2
+
