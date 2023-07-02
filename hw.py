@@ -3,6 +3,7 @@ import sympy as sym
 import matplotlib.pyplot as plt
 import control as ct
 import control.matlab as ctm
+from ctrls import *
 
 plt.style.use('seaborn-v0_8')
 
@@ -168,11 +169,53 @@ def hwprob2():
 
     BW = 10
     wc = 2 * BW / 3
-    tau = 0.01
+    tau = wc/10
 
-    beta = np.radians(-220) + np.arctan(tau * wc) + np.arctan(wc / 5) + 3 * np.arctan(wc)
-    a1 = wc / np.tan(beta/2)
+    theta = -np.pi + np.radians(50)
+    beta = -np.pi/2 - np.arctan(tau * wc) - np.arctan(wc/5) - 3 * np.arctan(wc)
+    a1 = wc / np.tan((theta - beta) / 2)
 
-    alpha = np.radians(500) + np.arctan(tau * wc) - np.arctan(wc / (1+1.7320508075688772j)) - np.arctan(wc / (1-1.7320508075688772j))
-    a2
+    alpha = -np.pi/2 - np.arctan(tau * wc) - np.arctan(2 * wc / 0.5+0.866j) - np.arctan(2 * wc / 0.5 - 0.866j)
+    a2 = wc / np.tan((theta - alpha) / 2)
+
+def prob3(BW, PM):
+    fs = 10
+    Ts = 1/fs
+    wc = 2 * BW / 3
+    tau = wc/10
+    P = ct.tf([-1, 1],[1, 1]) * ct.tf([1],[1, 1])
+
+    theta = -np.pi/2 + np.radians(PM)
+    beta = -3 * np.arctan(wc) - np.arctan(tau * wc)
+    ZOHlag = -(Ts*wc/2)
+    a = wc / np.tan((theta - beta - ZOHlag) / 2)
+
+    num = wc * (wc**2 + 1) * np.sqrt((tau * wc)**2 + 1)
+    den = (wc**2 + a**2) * np.sqrt((-wc)**2 + 1)
+    K = num / den
+
+    C = K * ct.tf([1, a],[1, 0]) * ct.tf([1, a],[tau, 1])
+
+    Pdt = ct.c2d(P, Ts, 'zoh')
+    Cdt = ct.c2d(C, Ts, 'tustin')
+    Ldt = Pdt * Cdt
+    Tdt = Ldt / (1 + Ldt)
+    Sdt = 1 - Tdt
+
+    plt.figure()
+    ct.bode([Tdt, Sdt])
+    plt.suptitle('Closed Loop Bode')
+
+    plt.figure()
+    t, y = ct.step_response(Tdt)
+    plt.plot(t, y)
+    plt.title("Closed Loop Step")
+    plt.ylabel("Amplitude")
+    plt.xlabel("Time (s)")
+
+    plt.figure()
+    ct.nyquist(Tdt)
+    plt.title('Closed Loop Nyquist')
+
+
 
