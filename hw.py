@@ -216,6 +216,42 @@ def prob3(BW, PM):
     plt.figure()
     ct.nyquist(Tdt)
     plt.title('Closed Loop Nyquist')
+def prob1():
+    cv = cw = 0.1
+    m = 0.2
+    M = 0.4
+    g = 9.81
+    R = 5
+    L = 0.1
+    k = 0.3
+    r = 0.1
+
+    pout = 75 * ct.tf([1, 15.6],[1, 49]) * ct.tf([1, -3.1],[1, 22]) * ct.tf([1],[1, -3.3]) * ct.tf([1],[1, 0.47])
+    pin = ct.tf([375, 0],[1, 49]) * ct.tf([1],[1, 22]) * ct.tf([1],[1, -3.3]) * ct.tf([1],[1, 0.47])
+    p3 = ct.tf([1],[1])
+    fs = 100
+    Ts = 1/fs
+    pm = 50
+
+    pout_ss = ct.tf2ss(p1)
+    pin_ss = ct.tf2ss(p2)
+
+    pin_w = ct.tf([0.003136, -0.003312, -0.002149, 0.00229],[1,  -3.444, 4.391, -2.543, 0.5058])
+    pout_w = ct.tf([-0.0001696, -0.3351, 69.24, 931.1, -3542],[1, 67.12, 853.2, -3087, -1633])
+
+    zeros_in = np.roots(pin_w.num[0][0])
+    poles_in = np.roots(pin_w.den[0][0])
+    zeros_out = np.roots(pout_w.num[0][0])
+    poles_out = np.roots(pout_w.den[0][0])
+
+    maxpole = np.max(np.abs(poles_in), np.abs(poles_out))
+    wc = np.ceil(maxpole)
+
+    theta = -np.pi/2 + np.radians(pm)
+    a_in = b_in = 0
+    a_out = b_out = 0
+    for z in zeros_in:
+        a_in = a_in + np.arctan(wc/z)
 
 
 
