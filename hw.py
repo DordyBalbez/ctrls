@@ -100,15 +100,13 @@ def prob2():
     # step(Tff)
 
 def obs_ex():
-    p = ct.tf([1, 2],[1, 3]) * ct.tf([1], [1, 4]) # want closed-loop poles of observer at -2+2i, -2-2i
+    p = ct.tf([1, 2],np.convolve([1, 3], [1, 4])) # want closed-loop poles of observer at -2+2i, -2-2i
     pss = ct.tf2ss(p)
-    A = pss.A[0][0]
-    B = pss.B[0][0]
-    C = pss.C[0][0]
+    A = pss.A
+    B = pss.B
+    C = pss.C
+    #Ackerman's formula
+    L = np.array([0, 1]).reshape(1, 2) @ la.inv(np.hstack((C.T, A.T @ C.T))) @ (la.matrix_power(A.T, 2) + 4 * A.T + 8 * np.eye(2))
+    L = L.T
 
-    K = np.array([0, 1]).reshape(1, 2) @ la.inv(np.hstack(B, A @ B)) @ (la.matrix_power(A, 2) + 4 * A + 8)
-    L = np.array([0, 1]).reshape(1, 2) @ la.inv(np.hstack(C.T, A.T @ C.T)) @ (la.matrix_power(A.T, 2) + 4 * A.T + 8)
-
-    print(L.T)
-    return(L.T)
-
+    return(L, la.eigvals(A - L@C))
