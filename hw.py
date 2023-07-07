@@ -4,29 +4,14 @@ plt.style.use('seaborn-v0_8')
 
 
 def prob1():
-    c_v = c_w = 0.1
-    m = 0.2
-    l = 0.2
-    M = 0.4
-    g = 9.81
-    R = 5
-    L = 0.1
+    c_v = c_w = L = r = 0.1
+    m = l = 0.2
     k = 0.3
-    r = 0.1
+    M = 0.4
+    R = 5
+    g = 9.81
 
-    # pvel = ctm.zpk([-15.6, 3.1], [-49, -22, 3.3, -0.47], 75)
-    # pang = ctm.zpk([0], [-49, -22, 3.3, -0.47], 375)
-    # pvol = ct.tf([1], [1])
-    #
-    # pvel_ss = ct.tf2ss(pvel)
-    # pang_ss = ct.tf2ss(pang)
-    # pvol_ss = ct.tf2ss(pvol)
-    #
-    # pvel_dt = ct.c2d(pvel, Ts, 'zoh')
-    # pang_dt = ct.c2d(pang, Ts, 'zoh')
-    # pvol_dt = ct.c2d(pvol, Ts, 'zoh')
-
-    E = np.array([[L, 0, 0, 0], [0, 1, 0, 0], [0, 0, m*l**2, -m*l], [0, 0, -m*l, m+M]]) # from hand calculations
+    E = np.array([[L, 0, 0, 0], [0, 1, 0, 0], [0, 0, m*l**2, -m*l], [0, 0, -m*l, m+M]])        # from hand calculations
     A = np.array([[-R, 0, 0, -k], [0, 0, 1, 0], [0, m*g*l, -c_w, 0], [k/r, 0, 0, -c_v]])
     B = np.array([1, 0, 0, 0]).reshape(4, 1)
     C = np.array([[0, 0, 0, 1], [0, 1, 0, 0], [0, 0, 0, 0]])
@@ -37,25 +22,42 @@ def prob1():
 
     P = ct.ss(A, B, C, D)
 
-    vars = vars()
-    plist = []                                      # 0: velocity, 1: angle, 2: voltage
-    dlist = []
-    for i in range(3):
-        dlist.append(f'P{i + 1}')
-        plist.append(ct.ss(A, B, C[i], D[i]))
-        vars[dlist[i]] = plist[i]
-
+    vars = globals()
+    plist = []
+    deflist_ct = []
+    deflist_dt = []
+    deflist_w = []                                # 0: velocity, 1: angle, 2: voltage
     fs = 100
     Ts = 1 / fs
+
+    for i in range(3):
+        deflist_ct.append(f'P{i + 1}')
+        # deflist_dt.append(f'P{i + 1}_dt')
+        # deflist_w.append(f'P{i + 1}_w')
+        sys = ct.ss(A, B, C[i], D[i])
+        plist.append(ct.tf(sys))
+        vars[deflist_ct[i]] = plist[i]
+
+    P1_dt = ct.c2d(P1, Ts, 'zoh')
+    P1_w = d2c_tustin(P1_dt, Ts)
+    P2_dt = ct.c2d(P2, Ts, 'zoh')
+    P2_w = d2c_tustin(P2_dt, Ts)
+
     pm = 50
 
-    # w-plane method from MATLAB
-    pvel_w = ct.tf([-0.00016966, -0.3351, 69.24, 931.1, -3542], [1, 67.12, 853.2, -3087, -1633])
-    pang_w = ct.tf([1.505e-05, -0.004047, 1.623, 366.2, -5.691e-11], [1, 67.12, 853.2, -3087, -1633])
-    pvol_w = pvol
+    return(P1, P2, P3, P1_dt, P2_dt, P1_w, P2_w)
 
-    c_i = pid_ct(pang_w, 40, 31.4942, plot=True) # literally if bw is 0.0001 higher it becomes unstable
-    c_i = ct.c2d(c_i, Ts, 'tustin')
+def prob1_2(plant: ct.TransferFunction):
+    a = np.linspace(1, 49, 49)
+
+    index = []
+    for i in range(len(a)):
+        c = pid_ct(plant, 45, a[i], 50*3/2)
+        t, y = ct.step_response(plant*c / (1 + plant * c))
+        index.append(np.max(y))
+
+    a = np.argmin(index)
+    return(a)
 
 
 
@@ -128,4 +130,3 @@ def obs_ex():
     L = L.T
 
     return(L, la.eigvals(A - L@C))
-
