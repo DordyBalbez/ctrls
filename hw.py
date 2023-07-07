@@ -14,32 +14,50 @@ def prob1():
     k = 0.3
     r = 0.1
 
-    pout = 75 * ct.tf([1, 15.6], [1, 49]) * ct.tf([1, -3.1], [1, 22]) * ct.tf([1], [1, -3.3]) * ct.tf([1], [1, 0.47])
-    pin = ct.tf([375, 0], [1, 49]) * ct.tf([1], [1, 22]) * ct.tf([1], [1, -3.3]) * ct.tf([1], [1, 0.47])
-    p3 = ct.tf([1], [1])
+    # pvel = ctm.zpk([-15.6, 3.1], [-49, -22, 3.3, -0.47], 75)
+    # pang = ctm.zpk([0], [-49, -22, 3.3, -0.47], 375)
+    # pvol = ct.tf([1], [1])
+    #
+    # pvel_ss = ct.tf2ss(pvel)
+    # pang_ss = ct.tf2ss(pang)
+    # pvol_ss = ct.tf2ss(pvol)
+    #
+    # pvel_dt = ct.c2d(pvel, Ts, 'zoh')
+    # pang_dt = ct.c2d(pang, Ts, 'zoh')
+    # pvol_dt = ct.c2d(pvol, Ts, 'zoh')
+
+    E = np.array([[L, 0, 0, 0], [0, 1, 0, 0], [0, 0, m*l**2, -m*l], [0, 0, -m*l, m+M]]) # from hand calculations
+    A = np.array([[-R, 0, 0, -k], [0, 0, 1, 0], [0, m*g*l, -c_w, 0], [k/r, 0, 0, -c_v]])
+    B = np.array([1, 0, 0, 0]).reshape(4, 1)
+    C = np.array([[0, 0, 0, 1], [0, 1, 0, 0], [0, 0, 0, 0]])
+    D = np.array([0, 0, 1]).reshape(3, 1)
+
+    A = la.inv(E) @ A
+    B = la.inv(E) @ B
+
+    P = ct.ss(A, B, C, D)
+
+    vars = vars()
+    plist = []                                      # 0: velocity, 1: angle, 2: voltage
+    dlist = []
+    for i in range(3):
+        dlist.append(f'P{i + 1}')
+        plist.append(ct.ss(A, B, C[i], D[i]))
+        vars[dlist[i]] = plist[i]
+
     fs = 100
     Ts = 1 / fs
     pm = 50
 
-    pout_ss = ct.tf2ss(p1)
-    pin_ss = ct.tf2ss(p2)
+    # w-plane method from MATLAB
+    pvel_w = ct.tf([-0.00016966, -0.3351, 69.24, 931.1, -3542], [1, 67.12, 853.2, -3087, -1633])
+    pang_w = ct.tf([1.505e-05, -0.004047, 1.623, 366.2, -5.691e-11], [1, 67.12, 853.2, -3087, -1633])
+    pvol_w = pvol
 
-    pin_w = ct.tf([0.003136, -0.003312, -0.002149, 0.00229], [1, -3.444, 4.391, -2.543, 0.5058])
-    pout_w = ct.tf([-0.0001696, -0.3351, 69.24, 931.1, -3542], [1, 67.12, 853.2, -3087, -1633])
+    c_i = pid_ct(pang_w, 40, 31.4942, plot=True) # literally if bw is 0.0001 higher it becomes unstable
+    c_i = ct.c2d(c_i, Ts, 'tustin')
 
-    zeros_in = np.roots(pin_w.num[0][0])
-    poles_in = np.roots(pin_w.den[0][0])
-    zeros_out = np.roots(pout_w.num[0][0])
-    poles_out = np.roots(pout_w.den[0][0])
 
-    maxpole = np.max(np.abs(poles_in), np.abs(poles_out))
-    wc = np.ceil(maxpole)
-
-    theta = -np.pi / 2 + np.radians(pm)
-    a_in = b_in = 0
-    a_out = b_out = 0
-    for z in zeros_in:
-        a_in = a_in + np.arctan(wc / z)
 
 
 def prob2():
@@ -110,3 +128,4 @@ def obs_ex():
     L = L.T
 
     return(L, la.eigvals(A - L@C))
+
