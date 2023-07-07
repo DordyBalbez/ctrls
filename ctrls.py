@@ -1,12 +1,12 @@
-import sympy as sym
+import control as ct
 import matplotlib.pyplot as plt
 import numpy as np
 import numpy.linalg as la
 import scipy.signal as sig
-import control as ct
-import control.matlab as ctm
+import sympy as sym
 
 plt.style.use('seaborn-v0_8')
+
 
 def step(H):
     t, y = ct.step_response(H)
@@ -14,6 +14,7 @@ def step(H):
     plt.axhline(y=y[-1], xmin=0, color='0', linestyle='--')
     plt.xlabel('Time (seconds)')
     plt.ylabel('Amplitude')
+
 
 def c2d_fe(H, T):
     H = ct.tf(H)
@@ -35,8 +36,8 @@ def c2d_fe(H, T):
     try:
         num = sym.Poly(sym_num).all_coeffs()
         num = list(map(float, num))
-    except Exception:                           # fix me
-        num = [1]                               # <-----
+    except Exception:  # fix me
+        num = [1]  # <-----
         num = list(map(float, num))
     finally:
         den = sym.Poly(sym_den).all_coeffs()
@@ -44,13 +45,14 @@ def c2d_fe(H, T):
 
     Hz = ct.tf(num, den, dt=T)
     Hz = ct.ss(Hz)
-    return(Hz)
+    return (Hz)
 
-def d2c_tustin(H, T):
+
+def d2c_tustin(H: ct.TransferFunction, T: float) -> ct.TransferFunction:
     H = ct.tf(H, dt=T)
 
     s = sym.Symbol('s')
-    z = (2 + s*T) / (2 - s*T)
+    z = (2 + s * T) / (2 - s * T)
 
     num, den = ct.tfdata(H)
 
@@ -69,32 +71,35 @@ def d2c_tustin(H, T):
     den = list(map(float, den))
 
     Hs = ct.tf(num, den)
-    Hs = ct.ss(Hs)
+    # Hs = ct.ss(Hs)
     return (Hs)
+
 
 def zn1(P):
     t, y = ct.step_response(P)
-    i5 = np.where(y > 0.05*y[-1])[0][0]       # 5% index
-    i15 = np.where(y > 0.15*y[-1])[0][0]      # 15% index
-    il = np.where(y > 0)[0][0]                # L index
+    i5 = np.where(y > 0.05 * y[-1])[0][0]  # 5% index
+    i15 = np.where(y > 0.15 * y[-1])[0][0]  # 15% index
+    il = np.where(y > 0)[0][0]  # L index
 
     r = (y[i15] - y[i5]) / (t[i15] - t[i5])
     l = t[il]
-    C_pid1 = 1.2/(r * l) + (0.6/(r * l**2)) * ct.tf([1], [1, 0]) + (0.5/r) * ct.tf([1, 0], [1/100, 1])
+    C_pid1 = 1.2 / (r * l) + (0.6 / (r * l ** 2)) * ct.tf([1], [1, 0]) + (0.5 / r) * ct.tf([1, 0], [1 / 100, 1])
 
     L1 = P * C_pid1
     T1 = L1 / (1 + L1)
     S1 = 1 - T1
 
-    return(C_pid1, L1, T1, S1)
+    return (C_pid1, L1, T1, S1)
+
 
 def zn2_K(P, K):
-    T_Ktest = P*K / (1 + P*K)
+    T_Ktest = P * K / (1 + P * K)
     t, y = ct.step_response(T_Ktest)
     plt.plot(t, y)
 
+
 def zn2(P, Ku):
-    T = P*Ku / (1 + P*Ku)
+    T = P * Ku / (1 + P * Ku)
     time, y = ct.step_response(T)
     peaks = sig.find_peaks(y)
 
@@ -106,30 +111,32 @@ def zn2(P, Ku):
     T2 = L2 / (1 + L2)
     S2 = 1 - T2
 
-    return(C_pid2, L2, T2, S2)
+    return (C_pid2, L2, T2, S2)
 
-def pid_ct(plant : ct.TransferFunction, phasemargin : float, bandwidth = None, plot=False, maxpole=False):
-    zeros = -np.roots(plant.num[0][0])                  # really the negative of the zeros & poles
+
+def pid_ct(plant: ct.TransferFunction, phasemargin: float, a: float, bandwidth=None, plot=False, maxpole=False) -> ct.TransferFunction:
+    zeros = -np.roots(plant.num[0][0])  # really the negative of the zeros & poles
     poles = -np.roots(plant.den[0][0])
 
     if maxpole:
         maxpole = np.max(np.abs(poles))
-        if maxpole % np.floor(maxpole) != 0:            # i.e., if maxpole is not an integer
+        if maxpole % np.floor(maxpole) != 0:  # i.e., if maxpole is not an integer
             wc = np.ceil(maxpole)
         else:
             wc = maxpole + 0.5
     else:
         wc = 2 * bandwidth / 3
 
-    tau = 1/(wc*10)
+    tau = 1 / (wc * 10)
 
-    theta = -np.pi + np.radians(phasemargin) + np.pi/2 + np.arctan(tau * wc)
+    # theta = -np.pi + np.radians(phasemargin) + np.pi / 2 + np.arctan(tau * wc)
+    theta = -np.pi + np.radians(phasemargin) + np.arctan(wc / a) + np.arctan(tau * wc)
     alpha = beta = 0
     for z in zeros:
-        alpha += np.arctan(wc/z)
+        alpha += np.arctan(wc / z)
 
     for p in poles:
-        beta += np.arctan(wc/p)
+        beta += np.arctan(wc / p)
 
     a = wc / np.tan((theta - alpha - beta) / 2)
 
@@ -141,7 +148,7 @@ def pid_ct(plant : ct.TransferFunction, phasemargin : float, bandwidth = None, p
         beta *= la.norm([wc, p], 2)
 
     num = beta * wc * la.norm([tau * wc, 1], 2)
-    den = alpha * (wc**2 + a**2)
+    den = alpha * (wc ** 2 + a ** 2)
     K = num / den
 
     controller = K * ct.tf([1, a], [1, 0]) * ct.tf([1, a], [tau, 1])
@@ -159,7 +166,4 @@ def pid_ct(plant : ct.TransferFunction, phasemargin : float, bandwidth = None, p
         step(t)
         plt.title('Closed-Loop step response')
 
-    return(controller)
-
-
-    return(C_pid2, L2, T2, S2)
+    return (controller)
