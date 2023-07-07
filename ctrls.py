@@ -1,10 +1,19 @@
 import sympy as sym
 import matplotlib.pyplot as plt
 import numpy as np
+import numpy.linalg as la
 import scipy.signal as sig
 import control as ct
+import control.matlab as ctm
 
 plt.style.use('seaborn-v0_8')
+
+def step(H):
+    t, y = ct.step_response(H)
+    plt.plot(t, y)
+    plt.axhline(y=y[-1], xmin=0, color='0', linestyle='--')
+    plt.xlabel('Time (seconds)')
+    plt.ylabel('Amplitude')
 
 def c2d_fe(H, T):
     H = ct.tf(H)
@@ -67,7 +76,7 @@ def zn1(P):
     t, y = ct.step_response(P)
     i5 = np.where(y > 0.05*y[-1])[0][0]       # 5% index
     i15 = np.where(y > 0.15*y[-1])[0][0]      # 15% index
-    il = np.where(y > 0)[0][0]          # L index
+    il = np.where(y > 0)[0][0]                # L index
 
     r = (y[i15] - y[i5]) / (t[i15] - t[i5])
     l = t[il]
@@ -96,5 +105,61 @@ def zn2(P, Ku):
     L2 = P * C_pid2
     T2 = L2 / (1 + L2)
     S2 = 1 - T2
+
+    return(C_pid2, L2, T2, S2)
+
+def pid_ct(plant : ct.TransferFunction, phasemargin : float, bandwidth = None, plot=False, maxpole=False):
+    zeros = -np.roots(plant.num[0][0])                  # really the negative of the zeros & poles
+    poles = -np.roots(plant.den[0][0])
+
+    if maxpole:
+        maxpole = np.max(np.abs(poles))
+        if maxpole % np.floor(maxpole) != 0:            # i.e., if maxpole is not an integer
+            wc = np.ceil(maxpole)
+        else:
+            wc = maxpole + 0.5
+    else:
+        wc = 2 * bandwidth / 3
+
+    tau = 1/(wc*10)
+
+    theta = -np.pi + np.radians(phasemargin) + np.pi/2 + np.arctan(tau * wc)
+    alpha = beta = 0
+    for z in zeros:
+        alpha += np.arctan(wc/z)
+
+    for p in poles:
+        beta += np.arctan(wc/p)
+
+    a = wc / np.tan((theta - alpha - beta) / 2)
+
+    alpha = beta = 1
+    for z in zeros:
+        alpha *= la.norm([wc, z], 2)
+
+    for p in poles:
+        beta *= la.norm([wc, p], 2)
+
+    num = beta * wc * la.norm([tau * wc, 1], 2)
+    den = alpha * (wc**2 + a**2)
+    K = num / den
+
+    controller = K * ct.tf([1, a], [1, 0]) * ct.tf([1, a], [tau, 1])
+    l = plant * controller
+    t = l / (1 + l)
+    s = 1 - t
+
+    if plot:
+        plt.figure()
+        ct.bode([t, s])
+        plt.figlegend(['$T$', '$S$'])
+        plt.suptitle('Sensitivity and complementary sensitivity frequency responses')
+
+        plt.figure()
+        step(t)
+        plt.title('Closed-Loop step response')
+
+    return(controller)
+
 
     return(C_pid2, L2, T2, S2)
