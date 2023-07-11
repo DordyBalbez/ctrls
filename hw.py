@@ -4,62 +4,42 @@ plt.style.use('seaborn-v0_8')
 
 
 def prob1():
-    c_v = c_w = L = r = 0.1
-    m = l = 0.2
-    k = 0.3
+    c_v = c_w = 0.1
+    m = 0.2
+    l = 0.2
     M = 0.4
-    R = 5
     g = 9.81
+    R = 5
+    L = 0.1
+    k = 0.3
+    r = 0.1
 
-    E = np.array([[L, 0, 0, 0], [0, 1, 0, 0], [0, 0, m*l**2, -m*l], [0, 0, -m*l, m+M]])        # from hand calculations
-    A = np.array([[-R, 0, 0, -k], [0, 0, 1, 0], [0, m*g*l, -c_w, 0], [k/r, 0, 0, -c_v]])
-    B = np.array([1, 0, 0, 0]).reshape(4, 1)
-    C = np.array([[0, 0, 0, 1], [0, 1, 0, 0], [0, 0, 0, 0]])
-    D = np.array([0, 0, 1]).reshape(3, 1)
-
-    A = la.inv(E) @ A
-    B = la.inv(E) @ B
-
-    P = ct.ss(A, B, C, D)
-
-    vars = globals()
-    plist = []
-    deflist_ct = []
-    deflist_dt = []
-    deflist_w = []                                # 0: velocity, 1: angle, 2: voltage
+    pout = 75 * ct.tf([1, 15.6], [1, 49]) * ct.tf([1, -3.1], [1, 22]) * ct.tf([1], [1, -3.3]) * ct.tf([1], [1, 0.47])
+    pin = ct.tf([375, 0], [1, 49]) * ct.tf([1], [1, 22]) * ct.tf([1], [1, -3.3]) * ct.tf([1], [1, 0.47])
+    p3 = ct.tf([1], [1])
     fs = 100
     Ts = 1 / fs
-
-    for i in range(3):
-        deflist_ct.append(f'P{i + 1}')
-        # deflist_dt.append(f'P{i + 1}_dt')
-        # deflist_w.append(f'P{i + 1}_w')
-        sys = ct.ss(A, B, C[i], D[i])
-        plist.append(ct.tf(sys))
-        vars[deflist_ct[i]] = plist[i]
-
-    P1_dt = ct.c2d(P1, Ts, 'zoh')
-    P1_w = d2c_tustin(P1_dt, Ts)
-    P2_dt = ct.c2d(P2, Ts, 'zoh')
-    P2_w = d2c_tustin(P2_dt, Ts)
-
     pm = 50
 
-    return(P1, P2, P3, P1_dt, P2_dt, P1_w, P2_w)
+    pout_ss = ct.tf2ss(p1)
+    pin_ss = ct.tf2ss(p2)
 
-def prob1_2(plant: ct.TransferFunction):
-    a = np.linspace(1, 49, 49)
+    pin_w = ct.tf([0.003136, -0.003312, -0.002149, 0.00229], [1, -3.444, 4.391, -2.543, 0.5058])
+    pout_w = ct.tf([-0.0001696, -0.3351, 69.24, 931.1, -3542], [1, 67.12, 853.2, -3087, -1633])
 
-    index = []
-    for i in range(len(a)):
-        c = pid_ct(plant, 45, a[i], 50*3/2)
-        t, y = ct.step_response(plant*c / (1 + plant * c))
-        index.append(np.max(y))
+    zeros_in = np.roots(pin_w.num[0][0])
+    poles_in = np.roots(pin_w.den[0][0])
+    zeros_out = np.roots(pout_w.num[0][0])
+    poles_out = np.roots(pout_w.den[0][0])
 
-    a = np.argmin(index)
-    return(a)
+    maxpole = np.max(np.abs(poles_in), np.abs(poles_out))
+    wc = np.ceil(maxpole)
 
-
+    theta = -np.pi / 2 + np.radians(pm)
+    a_in = b_in = 0
+    a_out = b_out = 0
+    for z in zeros_in:
+        a_in = a_in + np.arctan(wc / z)
 
 
 def prob2():
@@ -120,13 +100,15 @@ def prob2():
     # step(Tff)
 
 def obs_ex():
-    p = ct.tf([1, 2],np.convolve([1, 3], [1, 4])) # want closed-loop poles of observer at -2+2i, -2-2i
+    p = ct.tf([1, 2],[1, 3]) * ct.tf([1], [1, 4]) # want closed-loop poles of observer at -2+2i, -2-2i
     pss = ct.tf2ss(p)
-    A = pss.A
-    B = pss.B
-    C = pss.C
-    #Ackerman's formula
-    L = np.array([0, 1]).reshape(1, 2) @ la.inv(np.hstack((C.T, A.T @ C.T))) @ (la.matrix_power(A.T, 2) + 4 * A.T + 8 * np.eye(2))
-    L = L.T
+    A = pss.A[0][0]
+    B = pss.B[0][0]
+    C = pss.C[0][0]
 
-    return(L, la.eigvals(A - L@C))
+    K = np.array([0, 1]).reshape(1, 2) @ la.inv(np.hstack(B, A @ B)) @ (la.matrix_power(A, 2) + 4 * A + 8)
+    L = np.array([0, 1]).reshape(1, 2) @ la.inv(np.hstack(C.T, A.T @ C.T)) @ (la.matrix_power(A.T, 2) + 4 * A.T + 8)
+
+    print(L.T)
+    return(L.T)
+
